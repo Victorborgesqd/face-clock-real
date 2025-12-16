@@ -1,6 +1,6 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useState, useCallback, forwardRef, useImperativeHandle } from 'react';
 import { useFaceDetection, DetectedFace } from '@/hooks/useFaceDetection';
-import { Loader2, Camera, CameraOff, AlertCircle } from 'lucide-react';
+import { Loader2, Camera, CameraOff, AlertCircle, CheckCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 
@@ -12,32 +12,46 @@ interface CameraViewProps {
   autoDetect?: boolean;
 }
 
-const CameraView: React.FC<CameraViewProps> = ({
+export interface CameraViewRef {
+  capturePhoto: () => Promise<{ imageData: string; face: DetectedFace } | null>;
+}
+
+const CameraView = forwardRef<CameraViewRef, CameraViewProps>(({
   onFaceDetected,
   onCapture,
   showCaptureButton = false,
   className,
   autoDetect = true,
-}) => {
+}, ref) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isVideoStarted, setIsVideoStarted] = useState(false);
   const [currentFace, setCurrentFace] = useState<DetectedFace | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
+  const [detectionCount, setDetectionCount] = useState(0);
 
-  const { isLoading, isModelLoaded, error, startVideo, stopVideo, detectFace } = useFaceDetection();
+  const { isLoading, isModelLoaded, error, loadingProgress, startVideo, stopVideo, detectFace } = useFaceDetection();
 
   useEffect(() => {
+    let mounted = true;
+    
     const initCamera = async () => {
       if (videoRef.current && isModelLoaded) {
+        console.log('Iniciando câmera...');
         const success = await startVideo(videoRef.current);
-        setIsVideoStarted(success);
+        if (mounted) {
+          setIsVideoStarted(success);
+          console.log('Câmera iniciada:', success);
+        }
       }
     };
 
-    initCamera();
+    if (isModelLoaded) {
+      initCamera();
+    }
 
     return () => {
+      mounted = false;
       stopVideo();
     };
   }, [isModelLoaded, startVideo, stopVideo]);
@@ -46,19 +60,38 @@ const CameraView: React.FC<CameraViewProps> = ({
     if (!isVideoStarted || !autoDetect) return;
 
     let animationId: number;
-    let lastDetectionTime = 0;
-    const detectionInterval = 200; // ms
+    let isDetecting = false;
 
-    const detect = async (timestamp: number) => {
-      if (timestamp - lastDetectionTime > detectionInterval && videoRef.current) {
-        lastDetectionTime = timestamp;
-        const face = await detectFace(videoRef.current);
-        setCurrentFace(face);
-        if (face && onFaceDetected) {
-          onFaceDetected(face);
-        }
+    const detect = async () => {
+      if (isDetecting || !videoRef.current) {
+        animationId = requestAnimationFrame(detect);
+        return;
       }
-      animationId = requestAnimationFrame(detect);
+      
+      isDetecting = true;
+      
+      try {
+        const face = await detectFace(videoRef.current);
+        
+        if (face) {
+          setCurrentFace(face);
+          setDetectionCount(prev => prev + 1);
+          if (onFaceDetected) {
+            onFaceDetected(face);
+          }
+        } else {
+          setCurrentFace(null);
+        }
+      } catch (err) {
+        console.error('Erro na detecção:', err);
+      }
+      
+      isDetecting = false;
+      
+      // Reduce detection frequency to prevent overload
+      setTimeout(() => {
+        animationId = requestAnimationFrame(detect);
+      }, 300);
     };
 
     animationId = requestAnimationFrame(detect);
@@ -68,11 +101,16 @@ const CameraView: React.FC<CameraViewProps> = ({
     };
   }, [isVideoStarted, autoDetect, detectFace, onFaceDetected]);
 
-  const handleCapture = async () => {
-    if (!videoRef.current || !canvasRef.current || !currentFace) return;
+  const capturePhoto = useCallback(async (): Promise<{ imageData: string; face: DetectedFace } | null> => {
+    if (!videoRef.current || !canvasRef.current) return null;
 
-    setIsCapturing(true);
-    
+    // Force a fresh detection
+    const face = await detectFace(videoRef.current);
+    if (!face) {
+      console.log('Nenhum rosto detectado para captura');
+      return null;
+    }
+
     const canvas = canvasRef.current;
     const video = videoRef.current;
     canvas.width = video.videoWidth;
@@ -82,10 +120,24 @@ const CameraView: React.FC<CameraViewProps> = ({
     if (ctx) {
       ctx.drawImage(video, 0, 0);
       const imageData = canvas.toDataURL('image/jpeg', 0.8);
-      
-      if (onCapture) {
-        onCapture(imageData, currentFace);
-      }
+      console.log('Foto capturada com sucesso');
+      return { imageData, face };
+    }
+    
+    return null;
+  }, [detectFace]);
+
+  useImperativeHandle(ref, () => ({
+    capturePhoto,
+  }));
+
+  const handleCapture = async () => {
+    setIsCapturing(true);
+    
+    const result = await capturePhoto();
+    
+    if (result && onCapture) {
+      onCapture(result.imageData, result.face);
     }
     
     setIsCapturing(false);
@@ -93,50 +145,60 @@ const CameraView: React.FC<CameraViewProps> = ({
 
   if (isLoading) {
     return (
-      <div className={cn("flex flex-col items-center justify-center bg-card rounded-lg p-8", className)}>
+      <div className={cn("flex flex-col items-center justify-center bg-card rounded-lg p-8 min-h-[300px]", className)}>
         <Loader2 className="w-12 h-12 animate-spin text-primary mb-4" />
-        <p className="text-muted-foreground">Carregando modelos de reconhecimento facial...</p>
+        <p className="text-foreground font-medium">Carregando reconhecimento facial...</p>
+        {loadingProgress && (
+          <p className="text-sm text-muted-foreground mt-2">{loadingProgress}</p>
+        )}
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className={cn("flex flex-col items-center justify-center bg-card rounded-lg p-8", className)}>
+      <div className={cn("flex flex-col items-center justify-center bg-card rounded-lg p-8 min-h-[300px]", className)}>
         <AlertCircle className="w-12 h-12 text-destructive mb-4" />
-        <p className="text-destructive text-center">{error}</p>
+        <p className="text-destructive text-center font-medium">{error}</p>
+        <p className="text-sm text-muted-foreground mt-2 text-center">
+          Tente recarregar a página ou verificar as permissões da câmera.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className={cn("relative rounded-lg overflow-hidden bg-card", className)}>
+    <div className={cn("relative rounded-lg overflow-hidden bg-secondary", className)}>
       <video
         ref={videoRef}
         autoPlay
         muted
         playsInline
-        className="w-full h-full object-cover"
+        className="w-full h-full object-cover mirror"
+        style={{ transform: 'scaleX(-1)' }}
       />
       <canvas ref={canvasRef} className="hidden" />
       
       {/* Face detection overlay */}
       <div className="absolute inset-0 pointer-events-none">
+        {/* Guide frame */}
         <div className={cn(
-          "absolute inset-4 border-4 rounded-lg transition-colors duration-300",
-          currentFace ? "border-primary" : "border-muted"
+          "absolute inset-8 border-4 rounded-2xl transition-all duration-300",
+          currentFace 
+            ? "border-primary shadow-[0_0_20px_rgba(234,88,12,0.4)]" 
+            : "border-muted-foreground/50"
         )} />
         
-        {/* Status indicator */}
+        {/* Status indicator at bottom */}
         <div className={cn(
-          "absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-sm font-medium",
+          "absolute bottom-4 left-1/2 -translate-x-1/2 px-4 py-2 rounded-full text-sm font-medium transition-all duration-300",
           currentFace 
             ? "bg-primary text-primary-foreground" 
-            : "bg-muted text-muted-foreground"
+            : "bg-secondary/90 text-foreground"
         )}>
           {currentFace ? (
             <span className="flex items-center gap-2">
-              <Camera className="w-4 h-4" />
+              <CheckCircle className="w-4 h-4" />
               Rosto detectado
             </span>
           ) : (
@@ -148,24 +210,30 @@ const CameraView: React.FC<CameraViewProps> = ({
         </div>
       </div>
 
+      {/* Capture button */}
       {showCaptureButton && (
-        <div className="absolute bottom-16 left-1/2 -translate-x-1/2">
+        <div className="absolute bottom-20 left-1/2 -translate-x-1/2 pointer-events-auto">
           <Button
             onClick={handleCapture}
             disabled={!currentFace || isCapturing}
             size="lg"
-            className="rounded-full w-16 h-16"
+            className={cn(
+              "rounded-full w-20 h-20 shadow-lg transition-all duration-300",
+              currentFace ? "scale-100 opacity-100" : "scale-90 opacity-50"
+            )}
           >
             {isCapturing ? (
-              <Loader2 className="w-6 h-6 animate-spin" />
+              <Loader2 className="w-8 h-8 animate-spin" />
             ) : (
-              <Camera className="w-6 h-6" />
+              <Camera className="w-8 h-8" />
             )}
           </Button>
         </div>
       )}
     </div>
   );
-};
+});
+
+CameraView.displayName = 'CameraView';
 
 export default CameraView;
