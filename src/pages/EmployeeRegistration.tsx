@@ -1,13 +1,12 @@
-import React, { useState } from 'react';
-import CameraView from '@/components/CameraView';
+import React, { useState, useRef } from 'react';
+import CameraView, { CameraViewRef } from '@/components/CameraView';
 import { useEmployees } from '@/contexts/EmployeeContext';
-import { DetectedFace } from '@/hooks/useFaceDetection';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Camera, Check, User, Building } from 'lucide-react';
+import { Camera, Check, User, RefreshCw, ArrowLeft } from 'lucide-react';
 
 const EmployeeRegistration: React.FC = () => {
   const { addEmployee } = useEmployees();
@@ -18,6 +17,7 @@ const EmployeeRegistration: React.FC = () => {
   const [department, setDepartment] = useState('');
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [capturedDescriptor, setCapturedDescriptor] = useState<Float32Array | null>(null);
+  const cameraRef = useRef<CameraViewRef>(null);
 
   const handleStartCapture = () => {
     if (!name.trim() || !department.trim()) {
@@ -31,13 +31,28 @@ const EmployeeRegistration: React.FC = () => {
     setStep('capture');
   };
 
-  const handleCapture = (imageData: string, face: DetectedFace) => {
+  const handleCapture = (imageData: string, face: { descriptor: Float32Array }) => {
+    console.log('Foto capturada, descriptor length:', face.descriptor.length);
     setCapturedPhoto(imageData);
     setCapturedDescriptor(face.descriptor);
+    
+    toast({
+      title: 'Foto capturada!',
+      description: 'Verifique se a foto está boa e confirme o cadastro.',
+    });
   };
 
   const handleConfirm = () => {
-    if (!capturedPhoto || !capturedDescriptor) return;
+    if (!capturedPhoto || !capturedDescriptor) {
+      toast({
+        title: 'Erro',
+        description: 'Capture uma foto antes de confirmar',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    console.log('Salvando funcionário com descriptor de tamanho:', capturedDescriptor.length);
 
     addEmployee({
       name: name.trim(),
@@ -47,8 +62,8 @@ const EmployeeRegistration: React.FC = () => {
     });
 
     toast({
-      title: 'Funcionário cadastrado!',
-      description: `${name} foi adicionado com sucesso.`,
+      title: '✅ Funcionário cadastrado!',
+      description: `${name} foi adicionado com sucesso ao sistema.`,
     });
 
     // Reset form
@@ -75,9 +90,12 @@ const EmployeeRegistration: React.FC = () => {
       <div className="space-y-4">
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-lg">Captura Facial</CardTitle>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Camera className="w-5 h-5 text-primary" />
+              Captura Facial
+            </CardTitle>
             <CardDescription>
-              Cadastrando: <span className="font-medium text-foreground">{name}</span>
+              Cadastrando: <span className="font-semibold text-foreground">{name}</span>
             </CardDescription>
           </CardHeader>
         </Card>
@@ -85,15 +103,19 @@ const EmployeeRegistration: React.FC = () => {
         {capturedPhoto ? (
           <Card>
             <CardContent className="p-4 space-y-4">
-              <div className="aspect-[4/3] rounded-lg overflow-hidden">
+              <div className="aspect-[4/3] rounded-lg overflow-hidden bg-muted">
                 <img
                   src={capturedPhoto}
                   alt="Foto capturada"
                   className="w-full h-full object-cover"
                 />
               </div>
+              <p className="text-sm text-center text-muted-foreground">
+                Verifique se o rosto está bem visível na foto
+              </p>
               <div className="flex gap-3">
                 <Button variant="outline" onClick={handleRetake} className="flex-1">
+                  <RefreshCw className="w-4 h-4 mr-2" />
                   Tirar outra
                 </Button>
                 <Button onClick={handleConfirm} className="flex-1">
@@ -106,11 +128,13 @@ const EmployeeRegistration: React.FC = () => {
         ) : (
           <>
             <CameraView
+              ref={cameraRef}
               onCapture={handleCapture}
               showCaptureButton
               className="aspect-[4/3] w-full"
             />
             <Button variant="outline" onClick={handleBack} className="w-full">
+              <ArrowLeft className="w-4 h-4 mr-2" />
               Voltar
             </Button>
           </>
@@ -139,6 +163,7 @@ const EmployeeRegistration: React.FC = () => {
               placeholder="Digite o nome do funcionário"
               value={name}
               onChange={(e) => setName(e.target.value)}
+              autoComplete="off"
             />
           </div>
 
@@ -149,6 +174,7 @@ const EmployeeRegistration: React.FC = () => {
               placeholder="Ex: Recursos Humanos"
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
+              autoComplete="off"
             />
           </div>
 

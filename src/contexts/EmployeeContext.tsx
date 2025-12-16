@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { Employee, TimeRecord } from '@/types/employee';
+import * as faceapi from 'face-api.js';
 
 interface EmployeeContextType {
   employees: Employee[];
@@ -7,7 +8,7 @@ interface EmployeeContextType {
   addEmployee: (employee: Omit<Employee, 'id' | 'createdAt'>) => Employee;
   removeEmployee: (id: string) => void;
   addTimeRecord: (record: Omit<TimeRecord, 'id'>) => TimeRecord;
-  findEmployeeByFace: (descriptor: Float32Array, threshold?: number) => Employee | null;
+  findEmployeeByFace: (descriptor: Float32Array) => { employee: Employee; distance: number } | null;
   getLastRecordForEmployee: (employeeId: string) => TimeRecord | null;
 }
 
@@ -20,31 +21,40 @@ const STORAGE_KEYS = {
 
 export const EmployeeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [employees, setEmployees] = useState<Employee[]>(() => {
-    const stored = localStorage.getItem(STORAGE_KEYS.employees);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.map((emp: any) => ({
-        ...emp,
-        createdAt: new Date(emp.createdAt),
-      }));
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.employees);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.map((emp: any) => ({
+          ...emp,
+          createdAt: new Date(emp.createdAt),
+        }));
+      }
+    } catch (err) {
+      console.error('Erro ao carregar funcionários:', err);
     }
     return [];
   });
 
   const [timeRecords, setTimeRecords] = useState<TimeRecord[]>(() => {
-    const stored = localStorage.getItem(STORAGE_KEYS.records);
-    if (stored) {
-      const parsed = JSON.parse(stored);
-      return parsed.map((rec: any) => ({
-        ...rec,
-        timestamp: new Date(rec.timestamp),
-      }));
+    try {
+      const stored = localStorage.getItem(STORAGE_KEYS.records);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.map((rec: any) => ({
+          ...rec,
+          timestamp: new Date(rec.timestamp),
+        }));
+      }
+    } catch (err) {
+      console.error('Erro ao carregar registros:', err);
     }
     return [];
   });
 
   useEffect(() => {
     localStorage.setItem(STORAGE_KEYS.employees, JSON.stringify(employees));
+    console.log('Funcionários salvos:', employees.length);
   }, [employees]);
 
   useEffect(() => {
@@ -58,6 +68,8 @@ export const EmployeeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       createdAt: new Date(),
     };
     setEmployees(prev => [...prev, newEmployee]);
+    console.log('Novo funcionário adicionado:', newEmployee.name);
+    console.log('Descriptor length:', newEmployee.faceDescriptor.length);
     return newEmployee;
   }, []);
 
@@ -74,24 +86,32 @@ export const EmployeeProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return newRecord;
   }, []);
 
-  const euclideanDistance = (arr1: number[], arr2: Float32Array): number => {
-    let sum = 0;
-    for (let i = 0; i < arr1.length; i++) {
-      sum += Math.pow(arr1[i] - arr2[i], 2);
+  const findEmployeeByFace = useCallback((descriptor: Float32Array): { employee: Employee; distance: number } | null => {
+    if (employees.length === 0) {
+      console.log('Nenhum funcionário cadastrado');
+      return null;
     }
-    return Math.sqrt(sum);
-  };
 
-  const findEmployeeByFace = useCallback((descriptor: Float32Array, threshold = 0.6): Employee | null => {
-    let bestMatch: Employee | null = null;
-    let bestDistance = threshold;
+    const THRESHOLD = 0.6; // Threshold para considerar uma correspondência
+    let bestMatch: { employee: Employee; distance: number } | null = null;
+
+    console.log('Procurando correspondência entre', employees.length, 'funcionários');
 
     for (const employee of employees) {
-      const distance = euclideanDistance(employee.faceDescriptor, descriptor);
-      if (distance < bestDistance) {
-        bestDistance = distance;
-        bestMatch = employee;
+      const storedDescriptor = new Float32Array(employee.faceDescriptor);
+      const distance = faceapi.euclideanDistance(descriptor, storedDescriptor);
+      
+      console.log(`Distância para ${employee.name}: ${distance.toFixed(3)}`);
+
+      if (distance < THRESHOLD && (!bestMatch || distance < bestMatch.distance)) {
+        bestMatch = { employee, distance };
       }
+    }
+
+    if (bestMatch) {
+      console.log(`Melhor correspondência: ${bestMatch.employee.name} (distância: ${bestMatch.distance.toFixed(3)})`);
+    } else {
+      console.log('Nenhuma correspondência encontrada');
     }
 
     return bestMatch;

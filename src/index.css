@@ -158,3 +158,13 @@ All colors MUST be HSL.
     @apply bg-background text-foreground;
   }
 }
+
+/* Camera mirror effect */
+.mirror {
+  transform: scaleX(-1);
+}
+
+/* Safe area for mobile */
+.safe-area-inset-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0);
+}
