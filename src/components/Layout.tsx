@@ -1,31 +1,38 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Clock, UserPlus, History, Users } from 'lucide-react';
+import { Clock, UserPlus, History, Users, LayoutDashboard, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
+import { Button } from '@/components/ui/button';
 
 interface LayoutProps {
   children: React.ReactNode;
 }
 
-const navItems = [
-  { path: '/', icon: Clock, label: 'Ponto' },
-  { path: '/cadastro', icon: UserPlus, label: 'Cadastro' },
-  { path: '/funcionarios', icon: Users, label: 'Funcionários' },
-  { path: '/historico', icon: History, label: 'Histórico' },
-];
-
 const Layout: React.FC<LayoutProps> = ({ children }) => {
   const location = useLocation();
+  const { isAdmin, signOut } = useAuth();
+
+  const navItems = [
+    { path: '/', icon: Clock, label: 'Ponto', show: true },
+    { path: '/cadastro', icon: UserPlus, label: 'Cadastro', show: isAdmin },
+    { path: '/funcionarios', icon: Users, label: 'Funcionários', show: true },
+    { path: '/historico', icon: History, label: 'Histórico', show: true },
+    { path: '/admin', icon: LayoutDashboard, label: 'Admin', show: isAdmin },
+  ].filter(item => item.show);
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
       <header className="bg-card border-b border-border px-4 py-3 sticky top-0 z-50">
-        <div className="max-w-lg mx-auto flex items-center justify-center">
+        <div className="max-w-lg mx-auto flex items-center justify-between">
           <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
             <Clock className="w-6 h-6 text-primary" />
             PontoFacial
           </h1>
+          <Button variant="ghost" size="icon" onClick={signOut}>
+            <LogOut className="w-5 h-5" />
+          </Button>
         </div>
       </header>
 

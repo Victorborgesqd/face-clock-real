@@ -64,8 +64,8 @@ const TimeClock: React.FC = () => {
       setRecognizedEmployee({
         id: employee.id,
         name: employee.name,
-        department: employee.department,
-        photoUrl: employee.photoUrl,
+        department: employee.department || employee.role,
+        photoUrl: employee.photoUrl || '',
         confidence,
       });
       
@@ -84,24 +84,32 @@ const TimeClock: React.FC = () => {
     }
   }, [findEmployeeByFace, getLastRecordForEmployee, isProcessing, employees.length]);
 
-  const handleRegisterPoint = (type: 'entrada' | 'saida') => {
+  const handleRegisterPoint = async (type: 'entrada' | 'saida') => {
     if (!recognizedEmployee) return;
 
     setIsProcessing(true);
 
-    const record = addTimeRecord({
+    const record = await addTimeRecord({
       employeeId: recognizedEmployee.id,
       employeeName: recognizedEmployee.name,
       type,
       timestamp: new Date(),
     });
 
-    setLastRecord({ type: record.type, timestamp: record.timestamp });
+    if (record) {
+      setLastRecord({ type: record.type, timestamp: record.timestamp });
 
-    toast({
-      title: type === 'entrada' ? '✅ Entrada registrada!' : '✅ Saída registrada!',
-      description: `${recognizedEmployee.name} - ${format(record.timestamp, "HH:mm:ss", { locale: ptBR })}`,
-    });
+      toast({
+        title: type === 'entrada' ? '✅ Entrada registrada!' : '✅ Saída registrada!',
+        description: `${recognizedEmployee.name} - ${format(record.timestamp, "HH:mm:ss", { locale: ptBR })}`,
+      });
+    } else {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível registrar o ponto',
+        variant: 'destructive',
+      });
+    }
 
     // Clear cooldown to allow re-identification
     cooldownRef.current = null;

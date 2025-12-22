@@ -1,9 +1,10 @@
 export interface Employee {
   id: string;
   name: string;
-  department: string;
+  role: string;
+  department?: string;
   faceDescriptor: number[];
-  photoUrl: string;
+  photoUrl?: string;
   createdAt: Date;
 }
 
