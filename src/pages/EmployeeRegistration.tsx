@@ -14,16 +14,17 @@ const EmployeeRegistration: React.FC = () => {
   
   const [step, setStep] = useState<'form' | 'capture'>('form');
   const [name, setName] = useState('');
+  const [role, setRole] = useState('');
   const [department, setDepartment] = useState('');
   const [capturedPhoto, setCapturedPhoto] = useState<string | null>(null);
   const [capturedDescriptor, setCapturedDescriptor] = useState<Float32Array | null>(null);
   const cameraRef = useRef<CameraViewRef>(null);
 
   const handleStartCapture = () => {
-    if (!name.trim() || !department.trim()) {
+    if (!name.trim() || !role.trim()) {
       toast({
         title: 'Preencha todos os campos',
-        description: 'Nome e departamento são obrigatórios',
+        description: 'Nome e cargo são obrigatórios',
         variant: 'destructive',
       });
       return;
@@ -42,7 +43,7 @@ const EmployeeRegistration: React.FC = () => {
     });
   };
 
-  const handleConfirm = () => {
+  const handleConfirm = async () => {
     if (!capturedPhoto || !capturedDescriptor) {
       toast({
         title: 'Erro',
@@ -54,24 +55,34 @@ const EmployeeRegistration: React.FC = () => {
 
     console.log('Salvando funcionário com descriptor de tamanho:', capturedDescriptor.length);
 
-    addEmployee({
+    const employee = await addEmployee({
       name: name.trim(),
-      department: department.trim(),
+      role: role.trim(),
+      department: department.trim() || undefined,
       faceDescriptor: Array.from(capturedDescriptor),
       photoUrl: capturedPhoto,
     });
 
-    toast({
-      title: '✅ Funcionário cadastrado!',
-      description: `${name} foi adicionado com sucesso ao sistema.`,
-    });
+    if (employee) {
+      toast({
+        title: '✅ Funcionário cadastrado!',
+        description: `${name} foi adicionado com sucesso ao sistema.`,
+      });
 
-    // Reset form
-    setName('');
-    setDepartment('');
-    setCapturedPhoto(null);
-    setCapturedDescriptor(null);
-    setStep('form');
+      // Reset form
+      setName('');
+      setRole('');
+      setDepartment('');
+      setCapturedPhoto(null);
+      setCapturedDescriptor(null);
+      setStep('form');
+    } else {
+      toast({
+        title: 'Erro',
+        description: 'Não foi possível cadastrar o funcionário. Verifique se você tem permissão de admin.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleRetake = () => {
@@ -168,7 +179,18 @@ const EmployeeRegistration: React.FC = () => {
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="department">Departamento</Label>
+            <Label htmlFor="role">Cargo</Label>
+            <Input
+              id="role"
+              placeholder="Ex: Analista, Gerente"
+              value={role}
+              onChange={(e) => setRole(e.target.value)}
+              autoComplete="off"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="department">Departamento (opcional)</Label>
             <Input
               id="department"
               placeholder="Ex: Recursos Humanos"
@@ -181,7 +203,7 @@ const EmployeeRegistration: React.FC = () => {
           <Button 
             onClick={handleStartCapture} 
             className="w-full h-12"
-            disabled={!name.trim() || !department.trim()}
+            disabled={!name.trim() || !role.trim()}
           >
             <Camera className="w-5 h-5 mr-2" />
             Capturar Foto
