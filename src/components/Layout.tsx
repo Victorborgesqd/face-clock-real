@@ -1,9 +1,8 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
-import { Clock, UserPlus, History, Users, LayoutDashboard, LogOut } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
+import { Clock, Users, History, LayoutDashboard, LogOut, UserPlus, ShoppingCart, Package, TrendingUp } from 'lucide-react';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -15,56 +14,52 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
 
   const navItems = [
     { path: '/', icon: Clock, label: 'Ponto', show: true },
-    { path: '/cadastro', icon: UserPlus, label: 'Cadastro', show: isAdmin },
-    { path: '/funcionarios', icon: Users, label: 'Funcionários', show: true },
+    { path: '/pdv', icon: ShoppingCart, label: 'PDV', show: true },
+    { path: '/funcionarios', icon: Users, label: 'Equipe', show: true },
     { path: '/historico', icon: History, label: 'Histórico', show: true },
+    { path: '/produtos', icon: Package, label: 'Produtos', show: isAdmin },
+    { path: '/vendas', icon: TrendingUp, label: 'Vendas', show: isAdmin },
+    { path: '/cadastro', icon: UserPlus, label: 'Cadastro', show: isAdmin },
     { path: '/admin', icon: LayoutDashboard, label: 'Admin', show: isAdmin },
-  ].filter(item => item.show);
+  ];
 
   return (
     <div className="min-h-screen bg-background flex flex-col">
       {/* Header */}
-      <header className="bg-card border-b border-border px-4 py-3 sticky top-0 z-50">
-        <div className="max-w-lg mx-auto flex items-center justify-between">
-          <h1 className="text-xl font-bold text-foreground flex items-center gap-2">
-            <Clock className="w-6 h-6 text-primary" />
-            PontoFacial
-          </h1>
-          <Button variant="ghost" size="icon" onClick={signOut}>
-            <LogOut className="w-5 h-5" />
-          </Button>
+      <header className="bg-card border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 z-50">
+        <div className="flex items-center gap-2">
+          <Clock className="w-6 h-6 text-primary" />
+          <span className="font-bold text-foreground">Chão de Giz</span>
         </div>
+        <Button variant="ghost" size="icon" onClick={signOut}>
+          <LogOut className="w-5 h-5" />
+        </Button>
       </header>
 
-      {/* Main content */}
-      <main className="flex-1 overflow-auto pb-20">
-        <div className="max-w-lg mx-auto p-4">
-          {children}
-        </div>
+      {/* Main Content */}
+      <main className="flex-1 overflow-auto">
+        {children}
       </main>
 
-      {/* Bottom navigation */}
-      <nav className="fixed bottom-0 left-0 right-0 bg-card border-t border-border safe-area-inset-bottom">
-        <div className="max-w-lg mx-auto flex justify-around">
-          {navItems.map(({ path, icon: Icon, label }) => {
-            const isActive = location.pathname === path;
-            return (
-              <Link
-                key={path}
-                to={path}
-                className={cn(
-                  "flex flex-col items-center py-3 px-4 transition-colors",
-                  isActive 
-                    ? "text-primary" 
-                    : "text-muted-foreground hover:text-foreground"
-                )}
-              >
-                <Icon className="w-6 h-6 mb-1" />
-                <span className="text-xs font-medium">{label}</span>
-              </Link>
-            );
-          })}
-        </div>
+      {/* Bottom Navigation */}
+      <nav className="bg-card border-t border-border px-2 py-2 flex justify-around items-center sticky bottom-0 z-50 safe-area-inset-bottom">
+        {navItems.filter(item => item.show).map((item) => {
+          const isActive = location.pathname === item.path;
+          return (
+            <Link
+              key={item.path}
+              to={item.path}
+              className={`flex flex-col items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
+                isActive
+                  ? 'text-primary bg-primary/10'
+                  : 'text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <item.icon className="w-5 h-5" />
+              <span className="text-xs">{item.label}</span>
+            </Link>
+          );
+        })}
       </nav>
     </div>
   );
