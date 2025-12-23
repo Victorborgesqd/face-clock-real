@@ -47,6 +47,172 @@ export type Database = {
         }
         Relationships: []
       }
+      products: {
+        Row: {
+          category: Database["public"]["Enums"]["product_category"]
+          cost_price: number
+          created_at: string
+          description: string | null
+          id: string
+          min_stock_alert: number
+          name: string
+          photo_url: string | null
+          sale_price: number
+          stock_quantity: number
+          updated_at: string
+        }
+        Insert: {
+          category: Database["public"]["Enums"]["product_category"]
+          cost_price: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          min_stock_alert?: number
+          name: string
+          photo_url?: string | null
+          sale_price: number
+          stock_quantity?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: Database["public"]["Enums"]["product_category"]
+          cost_price?: number
+          created_at?: string
+          description?: string | null
+          id?: string
+          min_stock_alert?: number
+          name?: string
+          photo_url?: string | null
+          sale_price?: number
+          stock_quantity?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      sale_items: {
+        Row: {
+          created_at: string
+          id: string
+          product_id: string
+          quantity: number
+          sale_id: string
+          subtotal: number
+          unit_cost: number
+          unit_price: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          product_id: string
+          quantity: number
+          sale_id: string
+          subtotal: number
+          unit_cost: number
+          unit_price: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          product_id?: string
+          quantity?: number
+          sale_id?: string
+          subtotal?: number
+          unit_cost?: number
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sale_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sale_items_sale_id_fkey"
+            columns: ["sale_id"]
+            isOneToOne: false
+            referencedRelation: "sales"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sales: {
+        Row: {
+          created_at: string
+          employee_id: string
+          id: string
+          notes: string | null
+          payment_method: string
+          total_amount: number
+          total_cost: number
+          total_profit: number
+        }
+        Insert: {
+          created_at?: string
+          employee_id: string
+          id?: string
+          notes?: string | null
+          payment_method?: string
+          total_amount: number
+          total_cost: number
+          total_profit: number
+        }
+        Update: {
+          created_at?: string
+          employee_id?: string
+          id?: string
+          notes?: string | null
+          payment_method?: string
+          total_amount?: number
+          total_cost?: number
+          total_profit?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sales_employee_id_fkey"
+            columns: ["employee_id"]
+            isOneToOne: false
+            referencedRelation: "employees"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      stock_movements: {
+        Row: {
+          created_at: string
+          id: string
+          movement_type: string
+          product_id: string
+          quantity: number
+          reason: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          movement_type: string
+          product_id: string
+          quantity: number
+          reason?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          movement_type?: string
+          product_id?: string
+          quantity?: number
+          reason?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "stock_movements_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       time_records: {
         Row: {
           created_at: string
@@ -115,6 +281,7 @@ export type Database = {
     }
     Enums: {
       app_role: "admin" | "user"
+      product_category: "roupa" | "sapato" | "brinquedo"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -243,6 +410,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      product_category: ["roupa", "sapato", "brinquedo"],
     },
   },
 } as const
