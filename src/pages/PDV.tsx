@@ -1,15 +1,16 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useStore } from '@/contexts/StoreContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { toast } from '@/hooks/use-toast';
-import { ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, Search, Shirt, Footprints, Baby, AlertCircle } from 'lucide-react';
-import { ProductCategory } from '@/types/store';
+import { ShoppingCart, Plus, Minus, Trash2, CreditCard, Banknote, Search, Shirt, Footprints, Baby, AlertCircle, ScanBarcode, Check, X, Image } from 'lucide-react';
+import { ProductCategory, Product } from '@/types/store';
 
 const PDV: React.FC = () => {
   const { isAdmin } = useAuth();
@@ -29,6 +30,17 @@ const PDV: React.FC = () => {
   const [paymentMethod, setPaymentMethod] = useState('dinheiro');
   const [notes, setNotes] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
+  const [barcodeInput, setBarcodeInput] = useState('');
+  const barcodeInputRef = useRef<HTMLInputElement>(null);
+  
+  // Estado para confirmação de pagamento
+  const [showPaymentConfirm, setShowPaymentConfirm] = useState(false);
+  const [pendingPaymentMethod, setPendingPaymentMethod] = useState('');
+
+  // Auto-focus no input de barcode
+  useEffect(() => {
+    barcodeInputRef.current?.focus();
+  }, []);
 
   // Se não for admin e não estiver em expediente, mostrar aviso
   if (!isAdmin && !isEmployeeOnShift) {
@@ -45,7 +57,8 @@ const PDV: React.FC = () => {
   }
 
   const filteredProducts = products.filter((product) => {
-    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (product.code && product.code.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
     return matchesSearch && matchesCategory;
   });
@@ -63,18 +76,7 @@ const PDV: React.FC = () => {
     }
   };
 
-  const getCategoryLabel = (category: ProductCategory) => {
-    switch (category) {
-      case 'roupa':
-        return 'Roupa';
-      case 'sapato':
-        return 'Sapato';
-      case 'brinquedo':
-        return 'Brinquedo';
-    }
-  };
-
-  const handleAddToCart = (product: typeof products[0]) => {
+  const handleAddToCart = (product: Product) => {
     if (product.stockQuantity <= 0) {
       toast({
         title: 'Produto sem estoque',
@@ -101,7 +103,31 @@ const PDV: React.FC = () => {
     });
   };
 
-  const handleCompleteSale = async () => {
+  // Handler para scanner de código de barras
+  const handleBarcodeSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!barcodeInput.trim()) return;
+
+    const product = products.find(
+      (p) => p.code?.toLowerCase() === barcodeInput.toLowerCase().trim()
+    );
+
+    if (product) {
+      handleAddToCart(product);
+      setBarcodeInput('');
+    } else {
+      toast({
+        title: 'Produto não encontrado',
+        description: `Nenhum produto com o código "${barcodeInput}"`,
+        variant: 'destructive',
+      });
+    }
+    
+    barcodeInputRef.current?.focus();
+  };
+
+  const handleSelectPayment = (method: string) => {
     if (cart.length === 0) {
       toast({
         title: 'Carrinho vazio',
@@ -110,9 +136,15 @@ const PDV: React.FC = () => {
       });
       return;
     }
+    setPendingPaymentMethod(method);
+    setShowPaymentConfirm(true);
+  };
 
+  const handleConfirmSale = async () => {
+    setShowPaymentConfirm(false);
     setIsProcessing(true);
-    const sale = await completeSale(paymentMethod, notes || undefined);
+    
+    const sale = await completeSale(pendingPaymentMethod, notes || undefined);
     setIsProcessing(false);
 
     if (sale) {
@@ -121,6 +153,7 @@ const PDV: React.FC = () => {
         description: `Total: R$ ${sale.totalAmount.toFixed(2)}`,
       });
       setNotes('');
+      setPaymentMethod('dinheiro');
     } else {
       toast({
         title: 'Erro ao processar venda',
@@ -130,12 +163,49 @@ const PDV: React.FC = () => {
     }
   };
 
+  const handleCancelPayment = () => {
+    setShowPaymentConfirm(false);
+    setPendingPaymentMethod('');
+  };
+
+  const getPaymentLabel = (method: string) => {
+    switch (method) {
+      case 'dinheiro': return 'Dinheiro';
+      case 'cartao_credito': return 'Cartão de Crédito';
+      case 'cartao_debito': return 'Cartão de Débito';
+      case 'pix': return 'PIX';
+      default: return method;
+    }
+  };
+
   return (
     <div className="p-4 pb-24 space-y-4">
       <div className="text-center mb-4">
         <h1 className="text-2xl font-bold text-foreground">Chão de Giz</h1>
         <p className="text-muted-foreground text-sm">Ponto de Venda</p>
       </div>
+
+      {/* Input de Scanner/Barcode */}
+      <Card className="bg-primary/5 border-primary/20">
+        <CardContent className="p-4">
+          <form onSubmit={handleBarcodeSubmit} className="flex gap-2">
+            <div className="relative flex-1">
+              <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-primary" />
+              <Input
+                ref={barcodeInputRef}
+                placeholder="Bipe o código de barras ou digite o código..."
+                value={barcodeInput}
+                onChange={(e) => setBarcodeInput(e.target.value)}
+                className="pl-11 text-lg h-12 font-mono"
+                autoFocus
+              />
+            </div>
+            <Button type="submit" size="lg" className="h-12">
+              <Plus className="w-5 h-5" />
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Produtos */}
@@ -147,7 +217,7 @@ const PDV: React.FC = () => {
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input
-                    placeholder="Buscar produto..."
+                    placeholder="Buscar por nome ou código..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-9"
@@ -183,13 +253,16 @@ const PDV: React.FC = () => {
                 onClick={() => handleAddToCart(product)}
               >
                 <CardContent className="p-3">
-                  <div className="aspect-square bg-muted rounded-md mb-2 flex items-center justify-center">
+                  <div className="aspect-square bg-muted rounded-md mb-2 flex items-center justify-center overflow-hidden">
                     {product.photoUrl ? (
                       <img src={product.photoUrl} alt={product.name} className="w-full h-full object-cover rounded-md" />
                     ) : (
-                      getCategoryIcon(product.category)
+                      <Image className="w-8 h-8 text-muted-foreground" />
                     )}
                   </div>
+                  {product.code && (
+                    <p className="text-xs text-muted-foreground font-mono truncate">{product.code}</p>
+                  )}
                   <h3 className="font-medium text-sm text-foreground truncate">{product.name}</h3>
                   <div className="flex items-center justify-between mt-1">
                     <span className="text-primary font-bold">R$ {product.salePrice.toFixed(2)}</span>
@@ -274,47 +347,55 @@ const PDV: React.FC = () => {
                       <span className="text-primary">R$ {cartTotal.toFixed(2)}</span>
                     </div>
 
-                    <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Forma de pagamento" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="dinheiro">
-                          <div className="flex items-center gap-2">
-                            <Banknote className="w-4 h-4" />
-                            Dinheiro
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="cartao_credito">
-                          <div className="flex items-center gap-2">
-                            <CreditCard className="w-4 h-4" />
-                            Cartão de Crédito
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="cartao_debito">
-                          <div className="flex items-center gap-2">
-                            <CreditCard className="w-4 h-4" />
-                            Cartão de Débito
-                          </div>
-                        </SelectItem>
-                        <SelectItem value="pix">PIX</SelectItem>
-                      </SelectContent>
-                    </Select>
-
                     <Input
                       placeholder="Observações (opcional)"
                       value={notes}
                       onChange={(e) => setNotes(e.target.value)}
                     />
 
-                    <div className="flex gap-2">
-                      <Button variant="outline" onClick={clearCart} className="flex-1">
-                        Limpar
+                    {/* Botões de pagamento */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button
+                        variant="outline"
+                        className="flex flex-col h-auto py-3"
+                        onClick={() => handleSelectPayment('dinheiro')}
+                        disabled={isProcessing}
+                      >
+                        <Banknote className="w-5 h-5 mb-1" />
+                        <span className="text-xs">Dinheiro</span>
                       </Button>
-                      <Button onClick={handleCompleteSale} disabled={isProcessing} className="flex-1">
-                        {isProcessing ? 'Processando...' : 'Finalizar'}
+                      <Button
+                        variant="outline"
+                        className="flex flex-col h-auto py-3"
+                        onClick={() => handleSelectPayment('pix')}
+                        disabled={isProcessing}
+                      >
+                        <span className="text-lg mb-1">⚡</span>
+                        <span className="text-xs">PIX</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex flex-col h-auto py-3"
+                        onClick={() => handleSelectPayment('cartao_credito')}
+                        disabled={isProcessing}
+                      >
+                        <CreditCard className="w-5 h-5 mb-1" />
+                        <span className="text-xs">Crédito</span>
+                      </Button>
+                      <Button
+                        variant="outline"
+                        className="flex flex-col h-auto py-3"
+                        onClick={() => handleSelectPayment('cartao_debito')}
+                        disabled={isProcessing}
+                      >
+                        <CreditCard className="w-5 h-5 mb-1" />
+                        <span className="text-xs">Débito</span>
                       </Button>
                     </div>
+
+                    <Button variant="outline" onClick={clearCart} className="w-full">
+                      Limpar Carrinho
+                    </Button>
                   </div>
                 </>
               )}
@@ -322,6 +403,38 @@ const PDV: React.FC = () => {
           </Card>
         </div>
       </div>
+
+      {/* Dialog de Confirmação de Pagamento */}
+      <Dialog open={showPaymentConfirm} onOpenChange={setShowPaymentConfirm}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar Venda</DialogTitle>
+            <DialogDescription>
+              A venda foi aprovada no método {getPaymentLabel(pendingPaymentMethod)}?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <div className="text-center">
+              <p className="text-3xl font-bold text-primary">R$ {cartTotal.toFixed(2)}</p>
+              <p className="text-muted-foreground mt-2">
+                {cart.reduce((sum, item) => sum + item.quantity, 0)} itens • {getPaymentLabel(pendingPaymentMethod)}
+              </p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2 sm:gap-0">
+            <Button variant="outline" onClick={handleCancelPayment} className="flex-1">
+              <X className="w-4 h-4 mr-2" />
+              Voltar
+            </Button>
+            <Button onClick={handleConfirmSale} disabled={isProcessing} className="flex-1">
+              <Check className="w-4 h-4 mr-2" />
+              {isProcessing ? 'Processando...' : 'Venda Aprovada'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

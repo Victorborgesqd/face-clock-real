@@ -2,6 +2,7 @@ export type ProductCategory = 'roupa' | 'sapato' | 'brinquedo';
 
 export interface Product {
   id: string;
+  code?: string;
   name: string;
   category: ProductCategory;
   description?: string;
