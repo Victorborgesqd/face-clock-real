@@ -7,7 +7,8 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { EmployeeProvider } from "@/contexts/EmployeeContext";
 import { StoreProvider } from "@/contexts/StoreContext";
 import ProtectedRoute from "@/components/ProtectedRoute";
-import Layout from "@/components/Layout";
+import TimeClockLayout from "@/components/TimeClockLayout";
+import StoreLayout from "@/components/StoreLayout";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import EmployeeRegistration from "./pages/EmployeeRegistration";
@@ -32,46 +33,51 @@ const App = () => (
             <BrowserRouter>
               <Routes>
                 <Route path="/auth" element={<Auth />} />
+                
+                {/* Sistema de Ponto */}
                 <Route path="/" element={
                   <ProtectedRoute>
-                    <Layout><Index /></Layout>
+                    <TimeClockLayout><Index /></TimeClockLayout>
                   </ProtectedRoute>
                 } />
                 <Route path="/cadastro" element={
                   <ProtectedRoute requireAdmin>
-                    <Layout><EmployeeRegistration /></Layout>
+                    <TimeClockLayout><EmployeeRegistration /></TimeClockLayout>
                   </ProtectedRoute>
                 } />
                 <Route path="/funcionarios" element={
                   <ProtectedRoute>
-                    <Layout><EmployeeList /></Layout>
+                    <TimeClockLayout><EmployeeList /></TimeClockLayout>
                   </ProtectedRoute>
                 } />
                 <Route path="/historico" element={
                   <ProtectedRoute>
-                    <Layout><TimeHistory /></Layout>
+                    <TimeClockLayout><TimeHistory /></TimeClockLayout>
                   </ProtectedRoute>
                 } />
                 <Route path="/admin" element={
                   <ProtectedRoute requireAdmin>
-                    <Layout><AdminDashboard /></Layout>
+                    <TimeClockLayout><AdminDashboard /></TimeClockLayout>
                   </ProtectedRoute>
                 } />
-                <Route path="/pdv" element={
+
+                {/* Sistema de Loja - Chão de Giz */}
+                <Route path="/loja" element={
                   <ProtectedRoute>
-                    <Layout><PDV /></Layout>
+                    <StoreLayout><PDV /></StoreLayout>
                   </ProtectedRoute>
                 } />
-                <Route path="/produtos" element={
+                <Route path="/loja/produtos" element={
                   <ProtectedRoute requireAdmin>
-                    <Layout><ProductManagement /></Layout>
+                    <StoreLayout><ProductManagement /></StoreLayout>
                   </ProtectedRoute>
                 } />
-                <Route path="/vendas" element={
+                <Route path="/loja/vendas" element={
                   <ProtectedRoute requireAdmin>
-                    <Layout><SalesDashboard /></Layout>
+                    <StoreLayout><SalesDashboard /></StoreLayout>
                   </ProtectedRoute>
                 } />
+
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
