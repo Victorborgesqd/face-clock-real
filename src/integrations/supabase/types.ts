@@ -50,6 +50,7 @@ export type Database = {
       products: {
         Row: {
           category: Database["public"]["Enums"]["product_category"]
+          code: string | null
           cost_price: number
           created_at: string
           description: string | null
@@ -63,6 +64,7 @@ export type Database = {
         }
         Insert: {
           category: Database["public"]["Enums"]["product_category"]
+          code?: string | null
           cost_price: number
           created_at?: string
           description?: string | null
@@ -76,6 +78,7 @@ export type Database = {
         }
         Update: {
           category?: Database["public"]["Enums"]["product_category"]
+          code?: string | null
           cost_price?: number
           created_at?: string
           description?: string | null

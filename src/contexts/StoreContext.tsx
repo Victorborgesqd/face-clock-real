@@ -82,6 +82,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const mappedProducts: Product[] = (data || []).map((prod) => ({
       id: prod.id,
+      code: (prod as any).code || undefined,
       name: prod.name,
       category: prod.category as ProductCategory,
       description: prod.description || undefined,
@@ -214,6 +215,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const { data, error } = await supabase
       .from('products')
       .insert({
+        code: productData.code || null,
         name: productData.name,
         category: productData.category,
         description: productData.description || null,
@@ -222,7 +224,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         stock_quantity: productData.stockQuantity,
         min_stock_alert: productData.minStockAlert,
         photo_url: productData.photoUrl || null,
-      })
+      } as any)
       .select()
       .single();
 
@@ -233,6 +235,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const newProduct: Product = {
       id: data.id,
+      code: (data as any).code || undefined,
       name: data.name,
       category: data.category as ProductCategory,
       description: data.description || undefined,
@@ -252,6 +255,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const updateProduct = useCallback(async (id: string, productData: Partial<Product>): Promise<boolean> => {
     const updateData: Record<string, any> = {};
     
+    if (productData.code !== undefined) updateData.code = productData.code;
     if (productData.name !== undefined) updateData.name = productData.name;
     if (productData.category !== undefined) updateData.category = productData.category;
     if (productData.description !== undefined) updateData.description = productData.description;

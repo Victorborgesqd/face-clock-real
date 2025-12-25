@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useStore } from '@/contexts/StoreContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,8 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { toast } from '@/hooks/use-toast';
-import { Plus, Package, AlertTriangle, ArrowUp, ArrowDown, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Package, AlertTriangle, ArrowUp, ArrowDown, Trash2, Upload, Image } from 'lucide-react';
 import { ProductCategory } from '@/types/store';
+import { supabase } from '@/integrations/supabase/client';
 
 const ProductManagement: React.FC = () => {
   const {
@@ -26,8 +27,12 @@ const ProductManagement: React.FC = () => {
   const [isStockDialogOpen, setIsStockDialogOpen] = useState(false);
   const [selectedProductId, setSelectedProductId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewPhoto, setPreviewPhoto] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
+    code: '',
     name: '',
     category: 'roupa' as ProductCategory,
     description: '',
@@ -35,6 +40,7 @@ const ProductManagement: React.FC = () => {
     salePrice: '',
     stockQuantity: '',
     minStockAlert: '5',
+    photoUrl: '',
   });
 
   const [stockData, setStockData] = useState({
@@ -47,6 +53,7 @@ const ProductManagement: React.FC = () => {
 
   const resetForm = () => {
     setFormData({
+      code: '',
       name: '',
       category: 'roupa',
       description: '',
@@ -54,7 +61,45 @@ const ProductManagement: React.FC = () => {
       salePrice: '',
       stockQuantity: '',
       minStockAlert: '5',
+      photoUrl: '',
     });
+    setPreviewPhoto(null);
+  };
+
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Preview
+    const reader = new FileReader();
+    reader.onload = (e) => setPreviewPhoto(e.target?.result as string);
+    reader.readAsDataURL(file);
+
+    setIsUploading(true);
+    const fileExt = file.name.split('.').pop();
+    const fileName = `${Date.now()}.${fileExt}`;
+
+    const { data, error } = await supabase.storage
+      .from('product-photos')
+      .upload(fileName, file);
+
+    setIsUploading(false);
+
+    if (error) {
+      toast({
+        title: 'Erro ao enviar foto',
+        description: error.message,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('product-photos')
+      .getPublicUrl(data.path);
+
+    setFormData((prev) => ({ ...prev, photoUrl: urlData.publicUrl }));
+    toast({ title: 'Foto enviada com sucesso!' });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -62,6 +107,7 @@ const ProductManagement: React.FC = () => {
     setIsSubmitting(true);
 
     const product = await addProduct({
+      code: formData.code || undefined,
       name: formData.name,
       category: formData.category,
       description: formData.description || undefined,
@@ -69,6 +115,7 @@ const ProductManagement: React.FC = () => {
       salePrice: parseFloat(formData.salePrice),
       stockQuantity: parseInt(formData.stockQuantity),
       minStockAlert: parseInt(formData.minStockAlert),
+      photoUrl: formData.photoUrl || undefined,
     });
 
     setIsSubmitting(false);
@@ -149,11 +196,58 @@ const ProductManagement: React.FC = () => {
               Novo Produto
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-md">
+          <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Cadastrar Produto</DialogTitle>
             </DialogHeader>
             <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Foto do Produto */}
+              <div className="space-y-2">
+                <Label>Foto do Produto</Label>
+                <div className="flex items-center gap-4">
+                  <div className="w-24 h-24 bg-muted rounded-md flex items-center justify-center overflow-hidden border-2 border-dashed border-border">
+                    {previewPhoto || formData.photoUrl ? (
+                      <img 
+                        src={previewPhoto || formData.photoUrl} 
+                        alt="Preview" 
+                        className="w-full h-full object-cover" 
+                      />
+                    ) : (
+                      <Image className="w-8 h-8 text-muted-foreground" />
+                    )}
+                  </div>
+                  <div className="flex-1">
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/*"
+                      onChange={handlePhotoUpload}
+                      className="hidden"
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUploading}
+                      className="w-full"
+                    >
+                      <Upload className="w-4 h-4 mr-2" />
+                      {isUploading ? 'Enviando...' : 'Enviar Foto'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="code">Código / Barcode</Label>
+                <Input
+                  id="code"
+                  value={formData.code}
+                  onChange={(e) => setFormData({ ...formData, code: e.target.value })}
+                  placeholder="Ex: 7891234567890"
+                />
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="name">Nome do Produto</Label>
                 <Input
@@ -283,6 +377,8 @@ const ProductManagement: React.FC = () => {
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-16">Foto</TableHead>
+                <TableHead>Código</TableHead>
                 <TableHead>Nome</TableHead>
                 <TableHead>Categoria</TableHead>
                 <TableHead className="text-right">Custo</TableHead>
@@ -298,6 +394,18 @@ const ProductManagement: React.FC = () => {
                 const profitPercent = ((profit / product.costPrice) * 100).toFixed(0);
                 return (
                   <TableRow key={product.id}>
+                    <TableCell>
+                      <div className="w-12 h-12 bg-muted rounded-md flex items-center justify-center overflow-hidden">
+                        {product.photoUrl ? (
+                          <img src={product.photoUrl} alt={product.name} className="w-full h-full object-cover" />
+                        ) : (
+                          <Image className="w-5 h-5 text-muted-foreground" />
+                        )}
+                      </div>
+                    </TableCell>
+                    <TableCell className="font-mono text-sm">
+                      {product.code || '-'}
+                    </TableCell>
                     <TableCell className="font-medium">{product.name}</TableCell>
                     <TableCell>
                       <Badge variant="outline">{getCategoryLabel(product.category)}</Badge>
@@ -340,7 +448,7 @@ const ProductManagement: React.FC = () => {
               })}
               {products.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
+                  <TableCell colSpan={9} className="text-center text-muted-foreground py-8">
                     Nenhum produto cadastrado
                   </TableCell>
                 </TableRow>

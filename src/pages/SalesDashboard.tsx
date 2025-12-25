@@ -6,12 +6,13 @@ import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { DollarSign, TrendingUp, ShoppingBag, Users, Calendar, Package } from 'lucide-react';
-import { format, startOfDay, endOfDay, subDays, isWithinInterval } from 'date-fns';
+import { DollarSign, TrendingUp, ShoppingBag, Users, Calendar, Package, BarChart3, Trophy } from 'lucide-react';
+import { format, startOfDay, endOfDay, subDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 
 const SalesDashboard: React.FC = () => {
-  const { sales, products, getSalesByPeriod, getEmployeeSales } = useStore();
+  const { sales, products, getSalesByPeriod } = useStore();
   const { employees } = useEmployees();
   const [period, setPeriod] = useState<'today' | '7days' | '30days'>('today');
   const [selectedEmployee, setSelectedEmployee] = useState<string>('all');
@@ -63,7 +64,7 @@ const SalesDashboard: React.FC = () => {
 
   // Produtos mais vendidos
   const topProducts = useMemo(() => {
-    const productSales: Record<string, { name: string; quantity: number; revenue: number }> = {};
+    const productSales: Record<string, { name: string; quantity: number; revenue: number; profit: number }> = {};
     
     filteredSales.forEach((sale) => {
       sale.items?.forEach((item) => {
@@ -72,10 +73,12 @@ const SalesDashboard: React.FC = () => {
             name: item.productName || 'Produto removido',
             quantity: 0,
             revenue: 0,
+            profit: 0,
           };
         }
         productSales[item.productId].quantity += item.quantity;
         productSales[item.productId].revenue += item.subtotal;
+        productSales[item.productId].profit += (item.unitPrice - item.unitCost) * item.quantity;
       });
     });
 
@@ -84,6 +87,45 @@ const SalesDashboard: React.FC = () => {
       .sort((a, b) => b.quantity - a.quantity)
       .slice(0, 10);
   }, [filteredSales]);
+
+  // Dados para gráfico de vendas por dia
+  const salesByDay = useMemo(() => {
+    const days: Record<string, { date: string; revenue: number; profit: number; sales: number }> = {};
+    
+    filteredSales.forEach((sale) => {
+      const dateKey = format(sale.createdAt, 'dd/MM');
+      if (!days[dateKey]) {
+        days[dateKey] = { date: dateKey, revenue: 0, profit: 0, sales: 0 };
+      }
+      days[dateKey].revenue += sale.totalAmount;
+      days[dateKey].profit += sale.totalProfit;
+      days[dateKey].sales += 1;
+    });
+
+    return Object.values(days).sort((a, b) => a.date.localeCompare(b.date));
+  }, [filteredSales]);
+
+  // Dados para gráfico de categorias
+  const salesByCategory = useMemo(() => {
+    const categories: Record<string, { name: string; value: number }> = {
+      roupa: { name: 'Roupas', value: 0 },
+      sapato: { name: 'Sapatos', value: 0 },
+      brinquedo: { name: 'Brinquedos', value: 0 },
+    };
+
+    filteredSales.forEach((sale) => {
+      sale.items?.forEach((item) => {
+        const product = products.find((p) => p.id === item.productId);
+        if (product && categories[product.category]) {
+          categories[product.category].value += item.quantity;
+        }
+      });
+    });
+
+    return Object.values(categories).filter((c) => c.value > 0);
+  }, [filteredSales, products]);
+
+  const COLORS = ['hsl(var(--primary))', 'hsl(var(--chart-2))', 'hsl(var(--chart-3))'];
 
   const getPeriodLabel = () => {
     switch (period) {
@@ -180,6 +222,132 @@ const SalesDashboard: React.FC = () => {
         </Card>
       </div>
 
+      {/* Gráficos */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {/* Gráfico de Vendas por Dia */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <BarChart3 className="w-5 h-5" />
+              Vendas por Dia
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {salesByDay.length > 0 ? (
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={salesByDay}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                  <XAxis dataKey="date" className="text-xs" />
+                  <YAxis className="text-xs" />
+                  <Tooltip 
+                    contentStyle={{ 
+                      backgroundColor: 'hsl(var(--background))', 
+                      border: '1px solid hsl(var(--border))',
+                      borderRadius: '8px'
+                    }}
+                    formatter={(value: number) => [`R$ ${value.toFixed(2)}`, 'Receita']}
+                  />
+                  <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+                Nenhuma venda no período
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Gráfico de Categorias */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Package className="w-5 h-5" />
+              Vendas por Categoria
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {salesByCategory.length > 0 ? (
+              <div className="flex items-center justify-center">
+                <ResponsiveContainer width="100%" height={250}>
+                  <PieChart>
+                    <Pie
+                      data={salesByCategory}
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={60}
+                      outerRadius={100}
+                      paddingAngle={5}
+                      dataKey="value"
+                    >
+                      {salesByCategory.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--background))', 
+                        border: '1px solid hsl(var(--border))',
+                        borderRadius: '8px'
+                      }}
+                      formatter={(value: number, name: string) => [`${value} un.`, name]}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div className="h-[250px] flex items-center justify-center text-muted-foreground">
+                Nenhuma venda no período
+              </div>
+            )}
+            {salesByCategory.length > 0 && (
+              <div className="flex justify-center gap-4 mt-2">
+                {salesByCategory.map((cat, index) => (
+                  <div key={cat.name} className="flex items-center gap-2">
+                    <div 
+                      className="w-3 h-3 rounded-full" 
+                      style={{ backgroundColor: COLORS[index % COLORS.length] }}
+                    />
+                    <span className="text-sm">{cat.name}: {cat.value}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Top Produtos do Período */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Trophy className="w-5 h-5 text-yellow-500" />
+            Produtos Mais Vendidos - {getPeriodLabel()}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {topProducts.length > 0 ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {topProducts.slice(0, 5).map((product, index) => (
+                <Card key={product.id} className={index === 0 ? 'border-yellow-500/50 bg-yellow-500/5' : ''}>
+                  <CardContent className="p-4 text-center">
+                    <Badge variant={index === 0 ? 'default' : 'secondary'} className="mb-2">
+                      {index + 1}º lugar
+                    </Badge>
+                    <h4 className="font-medium text-sm truncate">{product.name}</h4>
+                    <p className="text-2xl font-bold text-primary mt-1">{product.quantity}</p>
+                    <p className="text-xs text-muted-foreground">unidades vendidas</p>
+                    <p className="text-sm text-green-600 mt-1">R$ {product.revenue.toFixed(2)}</p>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <p className="text-center text-muted-foreground py-8">Nenhum produto vendido no período</p>
+          )}
+        </CardContent>
+      </Card>
+
       <Tabs defaultValue="sales" className="space-y-4">
         <TabsList>
           <TabsTrigger value="sales">
@@ -192,7 +360,7 @@ const SalesDashboard: React.FC = () => {
           </TabsTrigger>
           <TabsTrigger value="products">
             <Package className="w-4 h-4 mr-2" />
-            Produtos
+            Todos Produtos
           </TabsTrigger>
         </TabsList>
 
@@ -297,7 +465,7 @@ const SalesDashboard: React.FC = () => {
         <TabsContent value="products">
           <Card>
             <CardHeader>
-              <CardTitle>Produtos Mais Vendidos - {getPeriodLabel()}</CardTitle>
+              <CardTitle>Todos os Produtos Vendidos - {getPeriodLabel()}</CardTitle>
             </CardHeader>
             <CardContent>
               <Table>
@@ -307,6 +475,7 @@ const SalesDashboard: React.FC = () => {
                     <TableHead>Produto</TableHead>
                     <TableHead className="text-center">Quantidade</TableHead>
                     <TableHead className="text-right">Receita</TableHead>
+                    <TableHead className="text-right">Lucro</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -320,11 +489,12 @@ const SalesDashboard: React.FC = () => {
                       <TableCell className="font-medium">{product.name}</TableCell>
                       <TableCell className="text-center">{product.quantity} un.</TableCell>
                       <TableCell className="text-right">R$ {product.revenue.toFixed(2)}</TableCell>
+                      <TableCell className="text-right text-green-600">R$ {product.profit.toFixed(2)}</TableCell>
                     </TableRow>
                   ))}
                   {topProducts.length === 0 && (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
+                      <TableCell colSpan={5} className="text-center text-muted-foreground py-8">
                         Nenhum produto vendido no período
                       </TableCell>
                     </TableRow>
