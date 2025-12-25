@@ -2,25 +2,20 @@ import React from 'react';
 import { useLocation, Link } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
-import { Clock, Users, History, LayoutDashboard, LogOut, UserPlus, ShoppingCart, Package, TrendingUp } from 'lucide-react';
+import { ShoppingCart, Package, TrendingUp, LogOut, Clock, Store } from 'lucide-react';
 
-interface LayoutProps {
+interface StoreLayoutProps {
   children: React.ReactNode;
 }
 
-const Layout: React.FC<LayoutProps> = ({ children }) => {
+const StoreLayout: React.FC<StoreLayoutProps> = ({ children }) => {
   const location = useLocation();
   const { isAdmin, signOut } = useAuth();
 
   const navItems = [
-    { path: '/', icon: Clock, label: 'Ponto', show: true },
-    { path: '/pdv', icon: ShoppingCart, label: 'PDV', show: true },
-    { path: '/funcionarios', icon: Users, label: 'Equipe', show: true },
-    { path: '/historico', icon: History, label: 'Histórico', show: true },
-    { path: '/produtos', icon: Package, label: 'Produtos', show: isAdmin },
-    { path: '/vendas', icon: TrendingUp, label: 'Vendas', show: isAdmin },
-    { path: '/cadastro', icon: UserPlus, label: 'Cadastro', show: isAdmin },
-    { path: '/admin', icon: LayoutDashboard, label: 'Admin', show: isAdmin },
+    { path: '/loja', icon: ShoppingCart, label: 'PDV', show: true },
+    { path: '/loja/produtos', icon: Package, label: 'Produtos', show: isAdmin },
+    { path: '/loja/vendas', icon: TrendingUp, label: 'Vendas', show: isAdmin },
   ];
 
   return (
@@ -28,12 +23,20 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
       {/* Header */}
       <header className="bg-card border-b border-border px-4 py-3 flex items-center justify-between sticky top-0 z-50">
         <div className="flex items-center gap-2">
-          <Clock className="w-6 h-6 text-primary" />
+          <Store className="w-6 h-6 text-primary" />
           <span className="font-bold text-foreground">Chão de Giz</span>
         </div>
-        <Button variant="ghost" size="icon" onClick={signOut}>
-          <LogOut className="w-5 h-5" />
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link to="/">
+            <Button variant="outline" size="sm" className="gap-2">
+              <Clock className="w-4 h-4" />
+              <span className="hidden sm:inline">Ponto</span>
+            </Button>
+          </Link>
+          <Button variant="ghost" size="icon" onClick={signOut}>
+            <LogOut className="w-5 h-5" />
+          </Button>
+        </div>
       </header>
 
       {/* Main Content */}
@@ -49,7 +52,7 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
             <Link
               key={item.path}
               to={item.path}
-              className={`flex flex-col items-center gap-1 px-2 py-1 rounded-lg transition-colors ${
+              className={`flex flex-col items-center gap-1 px-3 py-1 rounded-lg transition-colors ${
                 isActive
                   ? 'text-primary bg-primary/10'
                   : 'text-muted-foreground hover:text-foreground'
@@ -65,4 +68,4 @@ const Layout: React.FC<LayoutProps> = ({ children }) => {
   );
 };
 
-export default Layout;
+export default StoreLayout;
